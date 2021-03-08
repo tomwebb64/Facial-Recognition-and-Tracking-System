@@ -11,9 +11,9 @@ from geometry_msgs.msg import Pose2D
 from time import sleep
 
 
-raw_image_topic = "/raspicam_node/image/compressed" # change for each device
+cam_image_topic = "/raspicam_node/image/compressed" # change for each device
 
-faceCascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
+face_cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml") #loads pretrained classifier from file
 
 
 bridge = CvBridge()
@@ -24,24 +24,23 @@ no_face = False
 
 
 # Runs when new data is recieved from the camera in gazebo
-def callback(data): 
-    main_code(data)
+def camera_callback(data): 
+    process_image(data)
 
 # Begins node to read camera data and publish coordinates
 def startNode():
     global face_pub
     rospy.init_node('read_image', anonymous=False)  
-    rospy.Subscriber(raw_image_topic, CompressedImage, callback) 
+    rospy.Subscriber(cam_image_topic, CompressedImage, camera_callback) 
     face_pub = rospy.Publisher('face_boxes', Int16MultiArray, queue_size = 1)
     rate = rospy.Rate(50) 
     rospy.spin() # Keep python running the whole while this node is active.
 
 def get_face (img):
-    # Our operations on the frame come here
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # converts 3 channel colour image into 1 chanel image
 
-    # Detect faces in the image
-    faces = faceCascade.detectMultiScale(
+    # Detects faces in the grey image using classifier
+    faces = face_cascade.detectMultiScale(
         gray,
         scaleFactor=1.1,
         minNeighbors=5,
@@ -75,11 +74,11 @@ def publish_face(faces):
     
 
 
-def main_code(Image):
+def process_image(img_ros):
     global no_face
-    img = bridge.compressed_imgmsg_to_cv2(Image)
+    img_cv = bridge.compressed_imgmsg_to_cv2(img_ros)
 
-    faces = get_face(img)
+    faces = get_face(img_cv)
     if len(faces) > 0:
         no_face = False
         publish_face(faces)
@@ -99,8 +98,7 @@ def main_code(Image):
 
         
 
-while True:
-    startNode()
+startNode()
     
 
 

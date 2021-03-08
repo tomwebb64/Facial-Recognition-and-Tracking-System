@@ -11,11 +11,10 @@ from geometry_msgs.msg import Pose2D
 from time import sleep
 
 
-raw_image_topic = "/raspicam_node/image/compressed" # change for each device
+cam_image_topic = "/raspicam_node/image/compressed" # change for each device
 
 face_topic = "/face_boxes" # change namespace for each device
 
-faceCascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
 
 bridge = CvBridge()
 stop = False
@@ -26,28 +25,28 @@ close_preview = False
 Frames_since_last_face = 0
 
 
-# Runs when new data is recieved from the camera in gazebo
-def Image_callback(data): 
-    global Frames_since_last_face
-    main_code(data)
-    Frames_since_last_face += 1
+# Runs when new data is recieved from the camera
+def image_callback(img_ros): 
+    global frames_since_last_face
+    process_image(img_ros)
+    frames_since_last_face += 1
     #print ("Frames_since_last_face", Frames_since_last_face)
 
-def Face_callback(face_data):
-    global face_list # so other functions always have access to this variable
-    global Frames_since_last_face
+def face_callback(face_data):
+    global face_list
+    global frames_since_last_face
     faces = face_data.data
     face_list = []
     face_list = ([faces[i:i+4] for i in range(0, len(faces), 4)])
     #print (len(face_list),"faces Detected")
-    Frames_since_last_face = 0
+    frames_since_last_face = 0
 
 # Begins node to read camera data and publish coordinates
 def startNode():
     global face_pub
     rospy.init_node('read_faces', anonymous=False)  
-    rospy.Subscriber(raw_image_topic, CompressedImage, Image_callback) 
-    rospy.Subscriber(face_topic, Int16MultiArray, Face_callback)
+    rospy.Subscriber(cam_image_topic, CompressedImage, image_callback) 
+    rospy.Subscriber(face_topic, Int16MultiArray, face_callback)
     face_pub = rospy.Publisher('face_boxes', Int16MultiArray, queue_size = 10)
     rate = rospy.Rate(50) 
     rospy.spin() # Keep python running the whole while this node is active.
@@ -55,13 +54,13 @@ def startNode():
 
 
 
-def main_code(Image):
+def process_image(img_ros):
     global close_preview
-    img = bridge.compressed_imgmsg_to_cv2(Image)
+    img_cv = bridge.compressed_imgmsg_to_cv2(img_ros)
     try:
         if len(face_list)>0:
             for (x, y ,w, h) in face_list:
-                img = cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
+                img_cv = cv2.rectangle(img_cv,(x,y),(x+w,y+h),(0,255,0),2)
     except NameError:
         None
     # img = cv2.rotate(img_unrot, cv2.ROTATE_90_CLOCKWISE)
@@ -73,10 +72,8 @@ def main_code(Image):
         cv2.destroyAllWindows()
 
 
-        
 
-while True:
-    startNode()
+startNode()
     
 
 

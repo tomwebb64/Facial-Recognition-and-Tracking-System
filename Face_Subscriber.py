@@ -5,6 +5,7 @@ import numpy as np
 import colorsys
 from std_msgs.msg import Int16MultiArray
 from std_msgs.msg import MultiArrayDimension
+from std_msgs.msg import String
 from sensor_msgs.msg import CompressedImage
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge #Used to convert from ros string image to matrix image
@@ -84,11 +85,13 @@ def face_img_callback(face_img_ros):
 # Begins node to read camera data and publish coordinates
 def startNode():
     global face_pub
+    global name_pub
     rospy.init_node('read_faces', anonymous=False)  
     rospy.Subscriber(cam_image_topic, CompressedImage, image_callback) 
     rospy.Subscriber(face_topic, Int16MultiArray, face_callback)
     rospy.Subscriber(face_image_topic, Image, face_img_callback) 
     face_pub = rospy.Publisher('face_boxes', Int16MultiArray, queue_size = 10)
+    name_pub = rospy.Publisher('names', String, queue_size=10)
     rate = rospy.Rate(50) 
     rospy.spin() # Keep python running the whole while this node is active.
 
@@ -105,7 +108,8 @@ def find_name(face_crop_list):
         rgb_small_frame = small_frame[:, :, ::-1]
 
         # Only process every other frame of video to save time
-        if process_this_frame:
+        if process_this_frame == 30:
+            process_this_frame = 0
             # Find all the faces and face encodings in the current frame of video
 
             face_locations = face_recognition.face_locations(rgb_small_frame)
@@ -129,7 +133,7 @@ def find_name(face_crop_list):
                 face_names.append(name)
             return(face_names)
 
-        process_this_frame = not process_this_frame
+        process_this_frame += 1
 
         # Display the results
         for (top, right, bottom, left), name in zip(face_locations, face_names):
@@ -151,6 +155,7 @@ def find_name(face_crop_list):
 
 def process_image(img_ros):
     global close_preview
+    global name_pub
     # change values to increase border around face when cropping
     y_offset = 10 
     x_offset = 10
@@ -161,14 +166,23 @@ def process_image(img_ros):
     try:
         if len(face_list)>0:
             for (x, y ,w, h) in face_list:
+                middle_coordx, middle_coordy = x+(w/2),y+(h/2)
                 
                 img_cv = cv2.rectangle(img_cv,(x,y),(x+w,y+h),(0,255,0),2)
                 
                 face_crop_list.append(img_cv[y-y_offset:y+h+y_offset, x-x_offset:x+w+x_offset]) # adds each face as a cropped image, to a list
-            face_name_list = find_name(face_crop_list)
             
             names_list = find_name(face_crop_list)
-            print(names_list)
+
+            ######MESAGE NOT SENDING#########
+            try:
+                message = String(str(names_list[0])+"="+str(middle_coordx)+","+str(middle_coordy))
+                #message.data = (str(names_list[0]),"=",str(middle_coord))
+                print(message)
+                name_pub.publish(message)
+            except IndexError:
+                print("Could not recognise face")
+
     except NameError:
         None
     # img = cv2.rotate(img_unrot, cv2.ROTATE_90_CLOCKWISE)

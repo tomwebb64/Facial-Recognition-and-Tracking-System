@@ -6,6 +6,7 @@ import colorsys
 from std_msgs.msg import Int16MultiArray
 from std_msgs.msg import MultiArrayDimension
 from sensor_msgs.msg import CompressedImage
+from sensor_msgs.msg import Image
 from cv_bridge import CvBridge #Used to convert from ros string image to matrix image
 from geometry_msgs.msg import Pose2D
 from time import sleep
@@ -23,16 +24,19 @@ img = None
 no_face = False
 
 
-# Runs when new data is recieved from the camera in gazebo
+# Runs when new data is recieved from the camera
 def camera_callback(data): 
     process_image(data)
 
 # Begins node to read camera data and publish coordinates
 def startNode():
     global face_pub
+    global face_img_pub
+
     rospy.init_node('read_image', anonymous=False)  
     rospy.Subscriber(cam_image_topic, CompressedImage, camera_callback) 
     face_pub = rospy.Publisher('face_boxes', Int16MultiArray, queue_size = 1)
+    face_img_pub = rospy.Publisher("face_image_cropped",Image, queue_size = 2)
     rate = rospy.Rate(50) 
     rospy.spin() # Keep python running the whole while this node is active.
 
@@ -48,18 +52,22 @@ def get_face (img):
         #flags = cv2.CV_HAAR_SCALE_IMAGE
     )
 
-    #print("Found {0} faces!".format(len(faces)))
-
-    # Draw a rectangle around the faces
-    #for (x, y, w, h) in faces:
-    #	cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
     return faces
 
-def publish_face(faces):
+def publish_face(faces, img_cv):
+    global bridge
     faces_joined = []
+    face_img_list = []
     faces_len = len(faces)
+    y_offset =10 
+    x_offset = 10
     
     for (x, y, w, h) in faces:
+        crop_img = img_cv[y-y_offset:y+h+y_offset, x-x_offset:x+w+x_offset]
+        # face_img_list.append(crop_img)
+        crop_img_ros = bridge.cv2_to_imgmsg(crop_img, encoding="passthrough")
+        face_img_pub.publish(crop_img_ros)
+
         faces_joined.append(x)
         faces_joined.append(y)
         faces_joined.append(w)
@@ -67,10 +75,12 @@ def publish_face(faces):
     
     # Creating Template
     int_array = Int16MultiArray()
-
+    # int_array.stamp = rospy.Time.now()
+    # print (int_array.stamp)
     int_array.data = faces_joined
-    #rospy.loginfo("sent")
     face_pub.publish(int_array)
+
+    
     
 
 
@@ -81,20 +91,16 @@ def process_image(img_ros):
     faces = get_face(img_cv)
     if len(faces) > 0:
         no_face = False
-        publish_face(faces)
+        publish_face(faces, img_cv)
     else:
         if no_face == False:
-            publish_face(faces)
+            publish_face(faces, img_cv)
             no_face = True
     
     
 
     #img = cv2.rotate(img_unrot, cv2.ROTATE_180)
-'''
-    cv2.imshow('frame', img)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        cv2.destroyAllWindows()
-'''
+
 
         
 

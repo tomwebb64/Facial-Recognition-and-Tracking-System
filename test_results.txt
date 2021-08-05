@@ -1,0 +1,8 @@
+Good Lighting: 98/100
+Medium Lighting: 92/100
+Low Lighting: 62/100
+
+1 Meter: 97/100
+2 Meters: 99/100
+3 Meters: 72/100
+4 Meters: 41/100
